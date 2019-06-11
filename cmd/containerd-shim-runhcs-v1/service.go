@@ -97,7 +97,9 @@ func (s *service) Create(ctx context.Context, req *task.CreateTaskRequest) (resp
 		"parentcheckpoint": req.ParentCheckpoint,
 	})
 	defer func() {
-		log.Data["pid"] = resp.Pid
+		if resp != nil {
+			log.Data["pid"] = resp.Pid
+		}
 		endActivity(log, activity, err)
 	}()
 
