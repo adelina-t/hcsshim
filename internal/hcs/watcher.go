@@ -2,6 +2,9 @@ package hcs
 
 import (
 	"context"
+	"fmt"
+	"reflect"
+	"runtime"
 
 	"github.com/Microsoft/hcsshim/internal/logfields"
 	"github.com/Microsoft/hcsshim/internal/timeout"
@@ -22,20 +25,28 @@ import (
 // })
 //
 
+func nameForFunction(function func()) string {
+	name := runtime.FuncForPC(reflect.ValueOf(function).Pointer()).Name()
+	return name
+}
+
 func syscallWatcher(logContext logrus.Fields, syscallLambda func()) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout.SyscallWatcher)
 	defer cancel()
-	go watchFunc(ctx, logContext)
+	go watchFunc(ctx, logContext, syscallLambda)
 	syscallLambda()
 }
 
-func watchFunc(ctx context.Context, logContext logrus.Fields) {
+func watchFunc(ctx context.Context, logContext logrus.Fields, functionToWatch func()) {
+	nameOfFunctionToWatch := nameForFunction(functionToWatch)
+	logrus.WithFields(logContext).Warning(fmt.Sprintf("### Started watching syscall %s. ", nameOfFunctionToWatch))
 	select {
 	case <-ctx.Done():
 		if ctx.Err() != context.Canceled {
+			errorMessage := fmt.Sprintf("### Syscall %s ### Syscall did not complete within operation timeout. This may indicate a platform issue. If it appears to be making no forward progress, obtain the stacks and see if there is a syscall stuck in the platform API for a significant length of time.", nameOfFunctionToWatch)
 			logrus.WithFields(logContext).
 				WithField(logfields.Timeout, timeout.SyscallWatcher).
-				Warning("Syscall did not complete within operation timeout. This may indicate a platform issue. If it appears to be making no forward progress, obtain the stacks and see if there is a syscall stuck in the platform API for a significant length of time.")
+				Warning(errorMessage)
 		}
 	}
 }
