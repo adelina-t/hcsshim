@@ -8,6 +8,7 @@ import (
 
 	"github.com/Microsoft/hcsshim/internal/logfields"
 	"github.com/Microsoft/hcsshim/internal/timeout"
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -36,12 +37,12 @@ func genUUID() string {
 }
 
 func syscallWatcher(logContext logrus.Fields, syscallLambda func()) {
-        syscallId := genUUID()
+	syscallId := genUUID()
 	ctx, cancel := context.WithTimeout(context.Background(), timeout.SyscallWatcher)
 	defer cancel()
 	go watchFunc(ctx, logContext, syscallLambda, syscallId)
 	syscallLambda()
-        logrus.WithFields(logContext).Warning(fmt.Sprintf("### Syscall %s ID: %s ### syscall finished", nameForFunction(syscallLambda), syscallId)
+	logrus.WithFields(logContext).Warning(fmt.Sprintf("### Syscall %s ID: %s ### syscall finished", nameForFunction(syscallLambda), syscallId))
 }
 
 func watchFunc(ctx context.Context, logContext logrus.Fields, functionToWatch func(), syscallId string) {
@@ -55,10 +56,10 @@ func watchFunc(ctx context.Context, logContext logrus.Fields, functionToWatch fu
 				WithField(logfields.Timeout, timeout.SyscallWatcher).
 				Warning(errorMessage)
 		}
-                if ctx.Err() == context.Canceled {
-                        errorMessage := fmt.Sprintf("### Syscall %s ID %s ### syscall canceled.", nameOfFunctionToWatch, syscallId)
-                        logrus.WithFields(logContext).Warning(errorMessage)
-                }
-                
+		if ctx.Err() == context.Canceled {
+			errorMessage := fmt.Sprintf("### Syscall %s ID %s ### syscall canceled.", nameOfFunctionToWatch, syscallId)
+			logrus.WithFields(logContext).Warning(errorMessage)
+		}
+
 	}
 }
