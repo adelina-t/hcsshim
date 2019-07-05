@@ -30,23 +30,35 @@ func nameForFunction(function func()) string {
 	return name
 }
 
-func syscallWatcher(logContext logrus.Fields, syscallLambda func()) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout.SyscallWatcher)
-	defer cancel()
-	go watchFunc(ctx, logContext, syscallLambda)
-	syscallLambda()
+func genUUID() string {
+	id := uuid.New()
+	return id.String()
 }
 
-func watchFunc(ctx context.Context, logContext logrus.Fields, functionToWatch func()) {
+func syscallWatcher(logContext logrus.Fields, syscallLambda func()) {
+        syscallId := genUUID()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout.SyscallWatcher)
+	defer cancel()
+	go watchFunc(ctx, logContext, syscallLambda, syscallId)
+	syscallLambda()
+        logrus.WithFields(logContext).Warning(fmt.Sprintf("### Syscall %s ID: %s ### syscall finished", nameForFunction(syscallLambda), syscallId)
+}
+
+func watchFunc(ctx context.Context, logContext logrus.Fields, functionToWatch func(), syscallId string) {
 	nameOfFunctionToWatch := nameForFunction(functionToWatch)
-	logrus.WithFields(logContext).Warning(fmt.Sprintf("### Started watching syscall %s. ", nameOfFunctionToWatch))
+	logrus.WithFields(logContext).Warning(fmt.Sprintf("### Started watching syscall %s. ID: %s ", nameOfFunctionToWatch, syscallId))
 	select {
 	case <-ctx.Done():
 		if ctx.Err() != context.Canceled {
-			errorMessage := fmt.Sprintf("### Syscall %s ### Syscall did not complete within operation timeout. This may indicate a platform issue. If it appears to be making no forward progress, obtain the stacks and see if there is a syscall stuck in the platform API for a significant length of time.", nameOfFunctionToWatch)
+			errorMessage := fmt.Sprintf("### Syscall %s ID %s ### Syscall did not complete within operation timeout. This may indicate a platform issue. If it appears to be making no forward progress, obtain the stacks and see if there is a syscall stuck in the platform API for a significant length of time.", nameOfFunctionToWatch, syscallId)
 			logrus.WithFields(logContext).
 				WithField(logfields.Timeout, timeout.SyscallWatcher).
 				Warning(errorMessage)
 		}
+                if ctx.Err() == context.Canceled {
+                        errorMessage := fmt.Sprintf("### Syscall %s ID %s ### syscall canceled.", nameOfFunctionToWatch, syscallId)
+                        logrus.WithFields(logContext).Warning(errorMessage)
+                }
+                
 	}
 }
